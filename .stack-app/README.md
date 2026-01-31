@@ -1,4 +1,4 @@
-# Sideview Code Assistant
+# .stack Code Assistant
 
 A ChatGPT-like web application focused on **coding**, **debugging**, and **code explanation**. Supports both **Claude (Anthropic)** and **GPT (OpenAI)** models with a unique **Code Panel** feature for interactive code exploration.
 
