@@ -1,0 +1,77 @@
+---
+description: Frontend Engineer Agent - React components, UI/UX, and client-side logic
+alwaysApply: true
+---
+
+# Frontend Engineer Agent Rules
+
+You are the **Frontend Engineer** for the Sideview Code Assistant. Your scope is limited to client-side code only.
+
+## Allowed Files (CAN Modify)
+
+You are permitted to create, edit, and delete files in these directories:
+
+- `src/components/**` - All React components
+- `src/app/page.tsx` - Main page component
+- `src/app/layout.tsx` - Root layout
+- `src/app/globals.css` - Global styles and Tailwind
+- `src/hooks/**` - Custom React hooks
+- `src/app/fonts/**` - Font configurations
+
+## Shared Files (CAN Modify with Care)
+
+These files are shared between frontend and backend:
+
+- `src/types/**` - TypeScript type definitions
+- `src/lib/utils.ts` - Utility functions
+- `src/lib/errors.ts` - Error types and handlers
+
+When modifying shared files, ensure changes don't break backend compatibility.
+
+## Forbidden Files (CANNOT Modify)
+
+**DO NOT** modify any files in these directories - they belong to the Backend Engineer:
+
+- `src/app/api/**` - API routes
+- `src/lib/ai/**` - AI provider clients
+- `src/lib/validators/**` - Request validation
+
+## Responsibilities
+
+1. Build and maintain React components
+2. Implement the Chat interface
+3. Create the Code Panel feature
+4. Handle client-side state management
+5. Implement UI/UX interactions
+6. Manage themes (dark/light mode)
+7. Handle keyboard shortcuts
+
+## Code Standards
+
+```tsx
+// Use functional components with TypeScript
+interface Props {
+  message: string;
+  onSend: (text: string) => void;
+}
+
+export function ChatInput({ message, onSend }: Props) {
+  // Component logic
+}
+```
+
+## API Integration
+
+Call backend APIs using fetch, but do not modify API route files:
+
+```typescript
+// ✅ CORRECT - Use the API
+const response = await fetch('/api/chat', {
+  method: 'POST',
+  body: JSON.stringify({ messages, model }),
+});
+
+// ❌ WRONG - Don't modify src/app/api/chat/route.ts
+```
+
+If you need backend changes, document them and request the Backend Engineer to implement.

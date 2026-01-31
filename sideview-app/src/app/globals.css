@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Custom Palette: .stack */
+    --canvas: 60 20% 98%;    /* #FBFBF8 */
+    --mist: 207 24% 89%;      /* #DBE3E9 */
+    --cornflower: 208 61% 64%; /* #6AA6DA */
+    --pear: 64 48% 78%;      /* #E1E5AC */
+    --black: 0 0% 0%;         /* #000000 */
+
+    --background: var(--canvas);
+    --foreground: var(--black);
+    
+    --card: 0 0% 100%;
+    --card-foreground: var(--black);
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: var(--black);
+    
+    --primary: var(--cornflower);
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: var(--mist);
+    --secondary-foreground: var(--black);
+    
+    --muted: var(--mist);
+    --muted-foreground: 207 10% 40%;
+    
+    --accent: var(--pear);
+    --accent-foreground: var(--black);
+    
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: var(--mist);
+    --input: var(--mist);
+    --ring: var(--cornflower);
+    
+    --radius: 0.25rem; /* Sharper edges for .stack */
+  }
+
+  .dark {
+    --background: var(--black);
+    --foreground: var(--canvas);
+    
+    --card: 0 0% 5%;
+    --card-foreground: var(--canvas);
+    
+    --popover: 0 0% 5%;
+    --popover-foreground: var(--canvas);
+    
+    --primary: var(--cornflower);
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 207 10% 15%;
+    --secondary-foreground: var(--canvas);
+    
+    --muted: 207 10% 15%;
+    --muted-foreground: var(--mist);
+    
+    --accent: var(--pear);
+    --accent-foreground: var(--black);
+    
+    --border: 207 10% 15%;
+    --input: 207 10% 15%;
+    --ring: var(--cornflower);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Helvetica', 'Arial', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  
+  /* Retain Mono for code elements only */
+  code, pre, .font-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+}
+
+/* UI Enhancements */
+@layer utilities {
+  .glass-panel {
+    @apply bg-background/80 backdrop-blur-md border-border;
+  }
+  
+  .stack-shadow {
+    box-shadow: 4px 4px 0px 0px hsl(var(--black));
+  }
+  
+  .dark .stack-shadow {
+    box-shadow: 4px 4px 0px 0px hsl(var(--mist));
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-muted rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/30;
+}
