@@ -4,10 +4,14 @@ import { useState, useCallback, useEffect } from 'react';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import { ErrorBoundary, ErrorMessage } from '@/components/error/ErrorBoundary';
-import type { Message, CodeContext } from '@/types';
+import type { Message, CodeContext, Attachment } from '@/types';
 import { cn } from '@/lib/utils';
 
 interface ChatContainerProps {
+  messages: Message[];
+  onMessagesChange: (messages: Message[]) => void;
+  activeChatId: string | null;
+  onSaveChat?: (chatId: string, updates: { title?: string; messages?: Message[] }) => void;
   codeContext?: CodeContext | null;
   onClearContext?: () => void;
   onCodeAction?: (context: CodeContext) => void;
@@ -15,62 +19,76 @@ interface ChatContainerProps {
 }
 
 export function ChatContainer({
+  messages,
+  onMessagesChange,
+  activeChatId,
+  onSaveChat,
   codeContext,
   onClearContext,
   onCodeAction,
   className,
 }: ChatContainerProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const applyMessages = useCallback(
+    (newMessages: Message[], title?: string) => {
+      onMessagesChange(newMessages);
+      if (activeChatId && onSaveChat) {
+        onSaveChat(activeChatId, { messages: newMessages, ...(title !== undefined && { title }) });
+      }
+    },
+    [activeChatId, onMessagesChange, onSaveChat]
+  );
+
   const handleSend = useCallback(
-    async (content: string, context?: CodeContext) => {
+    async (content: string, context?: CodeContext, attachments?: Attachment[]) => {
       setError(null);
 
-      // Create user message
       const userMessage: Message = {
         id: `msg-${Date.now()}`,
         role: 'user',
         content,
         timestamp: new Date(),
         codeContext: context,
+        ...(attachments?.length && { attachments }),
       };
 
-      setMessages((prev) => [...prev, userMessage]);
+      const updatedMessages = [...messages, userMessage];
+      const title = messages.length === 0 && content.trim()
+        ? content.slice(0, 50) + (content.length > 50 ? '...' : '')
+        : undefined;
+      applyMessages(updatedMessages, title);
       setIsLoading(true);
 
       try {
-        // Simulate AI response (replace with actual API call)
         await new Promise((resolve) => setTimeout(resolve, 1500));
 
-        // If user asks for code or explanation, trigger the code panel
         const lowercaseContent = content.toLowerCase();
-        const triggersCode = lowercaseContent.includes('code') || 
-                             lowercaseContent.includes('explain') || 
-                             lowercaseContent.includes('function') ||
-                             lowercaseContent.includes('how to');
+        const triggersCode = lowercaseContent.includes('code') ||
+          lowercaseContent.includes('explain') ||
+          lowercaseContent.includes('function') ||
+          lowercaseContent.includes('how to');
 
         if (triggersCode && onCodeAction) {
-          // Simulate selecting a file/code block
           onCodeAction({
             fileName: 'app.tsx',
             language: 'tsx',
-            selectedCode: '...', 
+            selectedCode: '...',
             startLine: 1,
-            endLine: 10
+            endLine: 10,
           });
         }
 
-        // Create assistant response
         const assistantMessage: Message = {
           id: `msg-${Date.now() + 1}`,
           role: 'assistant',
-          content: generateMockResponse(content, context),
+          content: generateMockResponse(content, context, attachments),
           timestamp: new Date(),
         };
 
-        setMessages((prev) => [...prev, assistantMessage]);
+        const finalMessages = [...updatedMessages, assistantMessage];
+        applyMessages(finalMessages);
       } catch (err) {
         setError('Failed to get response. Please try again.');
         console.error('Chat error:', err);
@@ -78,7 +96,7 @@ export function ChatContainer({
         setIsLoading(false);
       }
     },
-    [onCodeAction]
+    [messages, applyMessages, onCodeAction]
   );
 
   // Handle auto-trigger messages from code context
@@ -128,7 +146,11 @@ export function ChatContainer({
 }
 
 // Mock response generator (replace with actual API integration)
-function generateMockResponse(userMessage: string, context?: CodeContext): string {
+function generateMockResponse(userMessage: string, context?: CodeContext, attachments?: Attachment[]): string {
+  if (attachments?.length) {
+    const files = attachments.map((a) => a.name).join(', ');
+    return `I've received your message${userMessage ? `: "${userMessage.slice(0, 50)}..."` : ''} along with ${attachments.length} attachment(s): ${files}.\n\nI can help you analyze the content, explain code, or answer questions about these files. What would you like to know?`;
+  }
   if (context) {
     return `I can see you've selected code from **${context.fileName}** (lines ${context.startLine}-${context.endLine}).
 

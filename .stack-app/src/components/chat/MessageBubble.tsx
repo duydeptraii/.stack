@@ -13,11 +13,12 @@ function MessageBubbleComponent({ message }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
 
-  const formatTime = (date: Date) => {
+  const formatTime = (date: Date | string) => {
+    const d = typeof date === 'string' ? new Date(date) : date;
     return new Intl.DateTimeFormat('en-US', {
       hour: '2-digit',
       minute: '2-digit',
-    }).format(date);
+    }).format(d);
   };
 
   return (
@@ -66,7 +67,7 @@ function MessageBubbleComponent({ message }: MessageBubbleProps) {
         {/* Message Bubble */}
         <div
           className={cn(
-            'rounded-2xl px-4 py-2.5 text-sm leading-relaxed',
+            'rounded-2xl px-4 py-2.5 text-sm leading-relaxed space-y-2',
             isUser
               ? 'rounded-tr-md bg-accent text-accent-foreground'
               : isSystem
@@ -74,6 +75,33 @@ function MessageBubbleComponent({ message }: MessageBubbleProps) {
               : 'rounded-tl-md bg-card text-card-foreground border border-border'
           )}
         >
+          {/* Attached images */}
+          {message.attachments?.filter((a) => a.type === 'image').length ? (
+            <div className="flex flex-wrap gap-2">
+              {message.attachments
+                .filter((a) => a.type === 'image')
+                .map((att, i) => (
+                  <img
+                    key={i}
+                    src={`data:${att.mimeType ?? 'image/png'};base64,${att.data}`}
+                    alt={att.name}
+                    className="max-h-40 max-w-full rounded-lg object-contain"
+                  />
+                ))}
+            </div>
+          ) : null}
+          {/* Attached files indicator */}
+          {message.attachments?.filter((a) => a.type === 'file').length ? (
+            <div className="flex flex-wrap gap-1 text-xs opacity-90">
+              {message.attachments
+                .filter((a) => a.type === 'file')
+                .map((att, i) => (
+                  <span key={i} className="rounded bg-black/10 px-1.5 py-0.5 font-mono dark:bg-white/10">
+                    {att.name}
+                  </span>
+                ))}
+            </div>
+          ) : null}
           {/* Render code blocks specially */}
           <MessageContent content={message.content} />
         </div>

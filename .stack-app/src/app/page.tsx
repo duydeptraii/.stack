@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTheme } from 'next-themes';
 import { PanelLeftClose, PanelLeft, Keyboard } from 'lucide-react';
-import { ChatContainer } from '@/components/chat';
+import { ChatContainer, ChatHistorySidebar } from '@/components/chat';
 import { CodePanel } from '@/components/code';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { ErrorBoundary } from '@/components/error/ErrorBoundary';
@@ -15,7 +15,9 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useGlobalShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useChatHistory } from '@/hooks/useChatHistory';
 import type { CodeContext, CodeFile } from '@/types';
+import type { Message } from '@/types';
 import { cn } from '@/lib/utils';
 
 // Sample code files for demonstration
@@ -160,6 +162,45 @@ export default function Home() {
   const [activeFileId, setActiveFileId] = useState(SAMPLE_FILES[0].id);
   const [codeContext, setCodeContext] = useState<CodeContext | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([]);
+
+  const {
+    chats,
+    activeChatId,
+    isLoading: chatsLoading,
+    loadChat,
+    createChat,
+    updateChat,
+    deleteChat,
+    clearActiveChat,
+    activeChat,
+  } = useChatHistory();
+
+  useEffect(() => {
+    if (activeChat) {
+      setMessages(activeChat.messages ?? []);
+    } else {
+      setMessages([]);
+    }
+  }, [activeChat]);
+
+  const handleNewChat = useCallback(async () => {
+    const id = await createChat();
+    if (id) setMessages([]);
+  }, [createChat]);
+
+  const handleSelectChat = useCallback(
+    (id: string) => {
+      loadChat(id);
+    },
+    [loadChat]
+  );
+
+  useEffect(() => {
+    if (!chatsLoading && chats.length === 0 && !activeChatId) {
+      createChat();
+    }
+  }, [chatsLoading, chats.length, activeChatId, createChat]);
 
   // Handle code selection or generation
   const handleSelectionChat = useCallback((context: CodeContext) => {
@@ -201,27 +242,19 @@ export default function Home() {
 
           <div className="flex items-center gap-2">
             {/* Toggle Code Panel */}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 cursor-pointer"
-                    onClick={handleToggleCodePanel}
-                  >
-                    {showCodePanel ? (
-                      <PanelLeftClose className="h-4 w-4" />
-                    ) : (
-                      <PanelLeft className="h-4 w-4" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{showCodePanel ? 'Hide' : 'Show'} code panel (Ctrl+B)</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 cursor-pointer"
+              onClick={handleToggleCodePanel}
+              aria-label={showCodePanel ? 'Hide code panel' : 'Show code panel'}
+            >
+              {showCodePanel ? (
+                <PanelLeftClose className="h-4 w-4" />
+              ) : (
+                <PanelLeft className="h-4 w-4" />
+              )}
+            </Button>
 
             {/* Keyboard Shortcuts */}
             <TooltipProvider>
@@ -249,14 +282,30 @@ export default function Home() {
 
         {/* Main Content */}
         <main className="flex flex-1 overflow-hidden">
-          {/* Chat Panel */}
+          {/* History Sidebar (left) */}
+          <ChatHistorySidebar
+            chats={chats}
+            activeChatId={activeChatId}
+            isLoading={chatsLoading}
+            onSelect={handleSelectChat}
+            onNewChat={handleNewChat}
+            onDelete={deleteChat}
+            className="h-full"
+          />
+
+          {/* Chat Panel - sync transition with code panel */}
           <div
             className={cn(
-              'flex flex-col transition-all duration-500 ease-in-out',
-              showCodePanel ? 'w-full md:w-1/2 lg:w-1/3' : 'w-full max-w-3xl mx-auto'
+              'flex flex-col min-w-0',
+              'transition-[flex,width,max-width] duration-300 ease-in-out',
+              showCodePanel ? 'flex-[6]' : 'flex-1 max-w-3xl mx-auto w-full'
             )}
           >
             <ChatContainer
+              messages={messages}
+              onMessagesChange={setMessages}
+              activeChatId={activeChatId}
+              onSaveChat={updateChat}
               codeContext={codeContext}
               onClearContext={handleClearContext}
               onCodeAction={handleSelectionChat}
@@ -264,14 +313,15 @@ export default function Home() {
             />
           </div>
 
-          {/* Code Panel */}
+          {/* Code Panel - 40% when visible, smooth transition on close */}
           <div
             className={cn(
-              'hidden overflow-hidden transition-all duration-500 ease-in-out md:block border-l border-border',
-              showCodePanel ? 'w-1/2 lg:w-2/3' : 'w-0'
+              'hidden overflow-hidden border-l border-border min-w-0 md:block',
+              'transition-[flex,width] duration-300 ease-in-out',
+              showCodePanel ? 'flex-[4]' : 'w-0 flex-none overflow-hidden'
             )}
           >
-            {showCodePanel && (
+            <div className={cn('h-full w-full transition-opacity duration-200', !showCodePanel && 'opacity-0 pointer-events-none')}>
               <CodePanel
                 files={SAMPLE_FILES}
                 activeFileId={activeFileId}
@@ -279,7 +329,7 @@ export default function Home() {
                 onSelectionChat={handleSelectionChat}
                 className="h-full"
               />
-            )}
+            </div>
           </div>
         </main>
 
@@ -319,26 +369,18 @@ export default function Home() {
 
         {/* Mobile Code Panel Toggle (visible on small screens) */}
         <div className="fixed bottom-20 right-4 md:hidden">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  className="h-12 w-12 rounded-full bg-accent text-accent-foreground shadow-lg cursor-pointer"
-                  onClick={handleToggleCodePanel}
-                >
-                  {showCodePanel ? (
-                    <PanelLeftClose className="h-5 w-5" />
-                  ) : (
-                    <PanelLeft className="h-5 w-5" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="left">
-                <p>{showCodePanel ? 'Hide' : 'Show'} code</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Button
+            size="icon"
+            className="h-12 w-12 rounded-full bg-accent text-accent-foreground shadow-lg cursor-pointer"
+            onClick={handleToggleCodePanel}
+            aria-label={showCodePanel ? 'Hide code' : 'Show code'}
+          >
+            {showCodePanel ? (
+              <PanelLeftClose className="h-5 w-5" />
+            ) : (
+              <PanelLeft className="h-5 w-5" />
+            )}
+          </Button>
         </div>
       </div>
     </ErrorBoundary>

@@ -213,13 +213,14 @@ export function CodePanel({
         </div>
       </div>
 
-      {/* Floating Selection Popup */}
+      {/* Floating Selection Popup - smooth fade-in on appear */}
       <div
         className={cn(
-          "fixed z-[100] flex items-center gap-1 rounded-md border border-black dark:border-white bg-white dark:bg-black p-0.5 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,1)] transition-all duration-300 ease-out -translate-x-1/2",
+          "fixed z-[100] flex items-center gap-1 rounded-md border border-black dark:border-white bg-white dark:bg-black p-0.5 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,1)] -translate-x-1/2",
+          "transition-[opacity,transform] duration-350 ease-out",
           popupPosition && selectedText
-            ? "opacity-100 translate-y-0 pointer-events-auto"
-            : "opacity-0 translate-y-2 pointer-events-none"
+            ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
+            : "opacity-0 scale-[0.97] translate-y-1.5 pointer-events-none"
         )}
         style={{
           top: `${(popupPosition || lastPopupPosition)?.top || 0}px`,
