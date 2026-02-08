@@ -17,17 +17,17 @@ import { getNumericEnv } from '@/lib/utils';
 /**
  * Simple in-memory rate limiter
  * In production, use Redis or similar
+ * Configure via RATE_LIMIT (requests per window) and RATE_LIMIT_WINDOW_SECONDS (window size)
  */
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT = 30; // requests per minute
-const RATE_WINDOW = 60 * 1000; // 1 minute in ms
+const RATE_LIMIT = Number(process.env.RATE_LIMIT) || 120; // requests per window (default 120/min)
+const RATE_WINDOW = (Number(process.env.RATE_LIMIT_WINDOW_SECONDS) || 60) * 1000; // window in ms
 
 function checkRateLimit(ip: string): { allowed: boolean; remaining: number; resetAt: number } {
   const now = Date.now();
   const record = rateLimitMap.get(ip);
 
   if (!record || now > record.resetAt) {
-    // Reset or create new record
     const resetAt = now + RATE_WINDOW;
     rateLimitMap.set(ip, { count: 1, resetAt });
     return { allowed: true, remaining: RATE_LIMIT - 1, resetAt };

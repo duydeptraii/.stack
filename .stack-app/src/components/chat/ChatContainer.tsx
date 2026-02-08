@@ -5,7 +5,10 @@ import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import { ErrorBoundary, ErrorMessage } from '@/components/error/ErrorBoundary';
 import type { Message, CodeContext, Attachment } from '@/types';
+import type { ModelId } from '@/types/chat';
 import { cn } from '@/lib/utils';
+
+const DEFAULT_MODEL: ModelId = 'gpt-4o';
 
 interface ChatContainerProps {
   messages: Message[];
@@ -15,7 +18,88 @@ interface ChatContainerProps {
   codeContext?: CodeContext | null;
   onClearContext?: () => void;
   onCodeAction?: (context: CodeContext) => void;
+  model?: ModelId;
   className?: string;
+}
+
+function buildApiMessages(messages: Message[]): Array<{ role: 'user' | 'assistant'; content: string }> {
+  return messages.map((m) => {
+    let content = m.content;
+    if (m.attachments?.length) {
+      const parts: string[] = [content].filter(Boolean);
+      for (const att of m.attachments) {
+        if (att.type === 'file') {
+          parts.push(`\n[File: ${att.name}]\n${att.data}`);
+        } else {
+          parts.push(`\n[Image attached: ${att.name}]`);
+        }
+      }
+      content = parts.join('\n').trim();
+    }
+    return { role: m.role as 'user' | 'assistant', content };
+  });
+}
+
+function buildApiCodeContext(context?: CodeContext | null): { fullCode: string; selectedPortion: string; language: string; filename: string } | undefined {
+  if (!context) return undefined;
+  return {
+    fullCode: context.selectedCode,
+    selectedPortion: context.selectedCode,
+    language: context.language,
+    filename: context.fileName,
+  };
+}
+
+async function streamChatResponse(
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+  model: ModelId,
+  codeContext: { fullCode: string; selectedPortion: string; language: string; filename: string } | undefined,
+  onChunk?: (text: string) => void
+): Promise<string> {
+  const res = await fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages, model, codeContext, stream: true }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Request failed: ${res.status}`);
+  }
+
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error('No response body');
+
+  const decoder = new TextDecoder();
+  let fullText = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    const chunk = decoder.decode(value, { stream: true });
+    const lines = chunk.split('\n');
+
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        const data = line.slice(6);
+        if (data === '[DONE]') continue;
+        try {
+          const parsed = JSON.parse(data) as { text?: string; error?: string };
+          if (parsed.error) throw new Error(parsed.error);
+          if (parsed.text) {
+            fullText += parsed.text;
+            onChunk?.(fullText);
+          }
+        } catch (e) {
+          if (e instanceof SyntaxError) continue;
+          throw e;
+        }
+      }
+    }
+  }
+
+  return fullText;
 }
 
 export function ChatContainer({
@@ -26,9 +110,11 @@ export function ChatContainer({
   codeContext,
   onClearContext,
   onCodeAction,
+  model = DEFAULT_MODEL,
   className,
 }: ChatContainerProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [streamingContent, setStreamingContent] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const applyMessages = useCallback(
@@ -44,6 +130,7 @@ export function ChatContainer({
   const handleSend = useCallback(
     async (content: string, context?: CodeContext, attachments?: Attachment[]) => {
       setError(null);
+      setStreamingContent('');
 
       const userMessage: Message = {
         id: `msg-${Date.now()}`,
@@ -62,41 +149,35 @@ export function ChatContainer({
       setIsLoading(true);
 
       try {
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+        const apiMessages = buildApiMessages(updatedMessages);
+        const apiCodeContext = buildApiCodeContext(context ?? codeContext);
 
-        const lowercaseContent = content.toLowerCase();
-        const triggersCode = lowercaseContent.includes('code') ||
-          lowercaseContent.includes('explain') ||
-          lowercaseContent.includes('function') ||
-          lowercaseContent.includes('how to');
-
-        if (triggersCode && onCodeAction) {
-          onCodeAction({
-            fileName: 'app.tsx',
-            language: 'tsx',
-            selectedCode: '...',
-            startLine: 1,
-            endLine: 10,
-          });
-        }
+        const assistantContent = await streamChatResponse(
+          apiMessages,
+          model,
+          apiCodeContext,
+          (text) => setStreamingContent(text)
+        );
 
         const assistantMessage: Message = {
           id: `msg-${Date.now() + 1}`,
           role: 'assistant',
-          content: generateMockResponse(content, context, attachments),
+          content: assistantContent,
           timestamp: new Date(),
         };
 
         const finalMessages = [...updatedMessages, assistantMessage];
         applyMessages(finalMessages);
       } catch (err) {
-        setError('Failed to get response. Please try again.');
+        const msg = err instanceof Error ? err.message : 'Failed to get response. Please try again.';
+        setError(msg);
         console.error('Chat error:', err);
       } finally {
         setIsLoading(false);
+        setStreamingContent('');
       }
     },
-    [messages, applyMessages, onCodeAction]
+    [messages, applyMessages, codeContext, model]
   );
 
   // Handle auto-trigger messages from code context
@@ -118,8 +199,8 @@ export function ChatContainer({
         {/* Messages */}
         <div className="flex-1 overflow-hidden">
           <MessageList
-            messages={messages}
-            isLoading={isLoading}
+            messages={isLoading && streamingContent ? [...messages, { id: 'streaming', role: 'assistant' as const, content: streamingContent, timestamp: new Date() }] : messages}
+            isLoading={isLoading && !streamingContent}
             className="h-full"
           />
         </div>
@@ -143,37 +224,6 @@ export function ChatContainer({
       </div>
     </ErrorBoundary>
   );
-}
-
-// Mock response generator (replace with actual API integration)
-function generateMockResponse(userMessage: string, context?: CodeContext, attachments?: Attachment[]): string {
-  if (attachments?.length) {
-    const files = attachments.map((a) => a.name).join(', ');
-    return `I've received your message${userMessage ? `: "${userMessage.slice(0, 50)}..."` : ''} along with ${attachments.length} attachment(s): ${files}.\n\nI can help you analyze the content, explain code, or answer questions about these files. What would you like to know?`;
-  }
-  if (context) {
-    return `I can see you've selected code from **${context.fileName}** (lines ${context.startLine}-${context.endLine}).
-
-Here's what I notice about this ${context.language} code:
-
-\`\`\`${context.language}
-${context.selectedCode.slice(0, 200)}${context.selectedCode.length > 200 ? '...' : ''}
-\`\`\`
-
-The code looks well-structured. Would you like me to:
-- Explain what it does
-- Suggest improvements
-- Find potential bugs
-- Add documentation`;
-  }
-
-  const responses = [
-    `That's a great question! Based on your query about "${userMessage.slice(0, 50)}...", I'd recommend considering the following approach...`,
-    `I understand you're asking about \`${userMessage.split(' ').slice(0, 3).join(' ')}\`. Here's what I can help with...`,
-    `Let me help you with that. To address your question effectively, I'll need to consider a few factors...`,
-  ];
-
-  return responses[Math.floor(Math.random() * responses.length)];
 }
 
 // Export for barrel file
