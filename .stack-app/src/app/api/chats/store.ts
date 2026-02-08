@@ -5,7 +5,6 @@
 
 import { randomUUID } from 'crypto';
 import type { ChatSession, ChatListItem, CreateChatBody, UpdateChatBody } from '@/types/chat-history';
-import type { Message } from '@/types';
 
 const store = new Map<string, ChatSession>();
 

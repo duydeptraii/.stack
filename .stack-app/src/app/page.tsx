@@ -172,7 +172,6 @@ export default function Home() {
     createChat,
     updateChat,
     deleteChat,
-    clearActiveChat,
     activeChat,
   } = useChatHistory();
 

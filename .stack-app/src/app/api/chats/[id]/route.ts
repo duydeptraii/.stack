@@ -52,7 +52,7 @@ function validateUpdateBody(body: unknown): UpdateChatBody {
         out.codeContext = msg.codeContext as Message['codeContext'];
       }
       if (Array.isArray(msg.attachments) && msg.attachments.length > 0) {
-        out.attachments = msg.attachments.map((a: unknown, j: number) => {
+        out.attachments = msg.attachments.map((a: unknown) => {
           if (!a || typeof a !== 'object') return null;
           const att = a as Record<string, unknown>;
           if (typeof att.type !== 'string' || !['image', 'file'].includes(att.type)) return null;

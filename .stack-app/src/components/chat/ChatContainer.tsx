@@ -109,7 +109,6 @@ export function ChatContainer({
   onSaveChat,
   codeContext,
   onClearContext,
-  onCodeAction,
   model = DEFAULT_MODEL,
   className,
 }: ChatContainerProps) {
